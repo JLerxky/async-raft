@@ -27,7 +27,11 @@ async fn dynamic_membership() -> Result<()> {
     fixtures::init_tracing();
 
     // Setup test dependencies.
-    let config = Arc::new(Config::build("test".into()).validate().expect("failed to build Raft config"));
+    let config = Arc::new(
+        Config::build("test".into())
+            .validate()
+            .expect("failed to build Raft config"),
+    );
     let router = Arc::new(RaftRouter::new(config.clone()));
     router.new_raft_node(0).await;
 
@@ -66,15 +70,24 @@ async fn dynamic_membership() -> Result<()> {
     sleep(Duration::from_secs(5)).await; // Wait for election and for everything to stabilize (this is way longer than needed).
     router.assert_stable_cluster(Some(2), Some(4)).await;
     let leader = router.leader().await.expect("expected new leader");
-    assert!(leader != 0, "expected new leader to be different from the old leader");
+    assert!(
+        leader != 0,
+        "expected new leader to be different from the old leader"
+    );
 
     // Restore isolated node.
     router.restore_node(0).await;
     sleep(Duration::from_secs(5)).await; // Wait for election and for everything to stabilize (this is way longer than needed).
     router.assert_stable_cluster(Some(2), Some(4)).await; // We should still be in term 2, as leaders should
                                                           // not be deposed when they are not missing heartbeats.
-    let current_leader = router.leader().await.expect("expected to find current leader");
-    assert_eq!(leader, current_leader, "expected cluster leadership to stay the same");
+    let current_leader = router
+        .leader()
+        .await
+        .expect("expected to find current leader");
+    assert_eq!(
+        leader, current_leader,
+        "expected cluster leadership to stay the same"
+    );
 
     Ok(())
 }

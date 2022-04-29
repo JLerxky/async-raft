@@ -22,7 +22,11 @@ async fn current_leader() -> Result<()> {
     fixtures::init_tracing();
 
     // Setup test dependencies.
-    let config = Arc::new(Config::build("test".into()).validate().expect("failed to build Raft config"));
+    let config = Arc::new(
+        Config::build("test".into())
+            .validate()
+            .expect("failed to build Raft config"),
+    );
     let router = Arc::new(RaftRouter::new(config.clone()));
     router.new_raft_node(0).await;
     router.new_raft_node(1).await;
@@ -44,7 +48,12 @@ async fn current_leader() -> Result<()> {
 
     for i in 0..3 {
         let leader = router.current_leader(i).await;
-        assert_eq!(leader, Some(0), "expected leader to be node 0, got {:?}", leader);
+        assert_eq!(
+            leader,
+            Some(0),
+            "expected leader to be node 0, got {:?}",
+            leader
+        );
     }
 
     Ok(())

@@ -25,7 +25,11 @@ async fn stepdown() -> Result<()> {
     fixtures::init_tracing();
 
     // Setup test dependencies.
-    let config = Arc::new(Config::build("test".into()).validate().expect("failed to build Raft config"));
+    let config = Arc::new(
+        Config::build("test".into())
+            .validate()
+            .expect("failed to build Raft config"),
+    );
     let router = Arc::new(RaftRouter::new(config.clone()));
     router.new_raft_node(0).await;
     router.new_raft_node(1).await;
@@ -41,11 +45,16 @@ async fn stepdown() -> Result<()> {
     router.assert_stable_cluster(Some(1), Some(1)).await;
 
     // Submit a config change which adds two new nodes and removes the current leader.
-    let orig_leader = router.leader().await.expect("expected the cluster to have a leader");
+    let orig_leader = router
+        .leader()
+        .await
+        .expect("expected the cluster to have a leader");
     assert_eq!(0, orig_leader, "expected original leader to be node 0");
     router.new_raft_node(2).await;
     router.new_raft_node(3).await;
-    router.change_membership(orig_leader, hashset![1, 2, 3]).await?;
+    router
+        .change_membership(orig_leader, hashset![1, 2, 3])
+        .await?;
     sleep(Duration::from_secs(5)).await; // Give time for step down metrics to flow through.
 
     // Assert on the state of the old leader.
@@ -57,7 +66,10 @@ async fn stepdown() -> Result<()> {
             .find(|node| node.id == 0)
             .expect("expected to find metrics on original leader node");
         let cfg = metrics.membership_config;
-        assert!(metrics.state != State::Leader, "expected old leader to have stepped down");
+        assert!(
+            metrics.state != State::Leader,
+            "expected old leader to have stepped down"
+        );
         assert_eq!(
             metrics.current_term, 1,
             "expected old leader to still be in first term, got {}",
@@ -79,7 +91,10 @@ async fn stepdown() -> Result<()> {
             "expected old leader to have membership of [1, 2, 3], got {:?}",
             cfg.members
         );
-        assert!(cfg.members_after_consensus.is_none(), "expected old leader to be out of joint consensus");
+        assert!(
+            cfg.members_after_consensus.is_none(),
+            "expected old leader to be out of joint consensus"
+        );
     }
 
     // Assert that the current cluster is stable.

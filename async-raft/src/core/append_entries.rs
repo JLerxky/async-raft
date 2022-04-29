@@ -11,7 +11,10 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         level="trace", skip(self, msg),
         fields(term=msg.term, leader_id=msg.leader_id, prev_log_index=msg.prev_log_index, prev_log_term=msg.prev_log_term, leader_commit=msg.leader_commit),
     )]
-    pub(super) async fn handle_append_entries_request(&mut self, msg: AppendEntriesRequest<D>) -> RaftResult<AppendEntriesResponse> {
+    pub(super) async fn handle_append_entries_request(
+        &mut self,
+        msg: AppendEntriesRequest<D>,
+    ) -> RaftResult<AppendEntriesResponse> {
         // If message's term is less than most recent term, then we do not honor the request.
         if msg.term < self.current_term {
             tracing::trace!({self.current_term, rpc_term=msg.term}, "AppendEntries RPC term is less than current term");
@@ -61,7 +64,8 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         // If RPC's `prev_log_index` is 0, or the RPC's previous log info matches the local
         // log info, then replication is g2g.
         let msg_prev_index_is_min = msg.prev_log_index == u64::min_value();
-        let msg_index_and_term_match = (msg.prev_log_index == self.last_log_index) && (msg.prev_log_term == self.last_log_term);
+        let msg_index_and_term_match = (msg.prev_log_index == self.last_log_index)
+            && (msg.prev_log_term == self.last_log_term);
         if msg_prev_index_is_min || msg_index_and_term_match {
             self.append_log_entries(&msg.entries).await?;
             self.replicate_to_state_machine_if_needed(msg.entries).await;
@@ -124,13 +128,20 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         // The target entry does not have the same term. Fetch the last 50 logs, and use the last
         // entry of that payload which is still in the target term for conflict optimization.
         else {
-            let start = if msg.prev_log_index >= 50 { msg.prev_log_index - 50 } else { 0 };
+            let start = if msg.prev_log_index >= 50 {
+                msg.prev_log_index - 50
+            } else {
+                0
+            };
             let old_entries = self
                 .storage
                 .get_log_entries(start, msg.prev_log_index)
                 .await
                 .map_err(|err| self.map_fatal_storage_error(err))?;
-            let opt = match old_entries.iter().find(|entry| entry.term == msg.prev_log_term) {
+            let opt = match old_entries
+                .iter()
+                .find(|entry| entry.term == msg.prev_log_term)
+            {
                 Some(entry) => Some(ConflictOpt {
                     term: entry.term,
                     index: entry.index,

@@ -17,7 +17,8 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
 
-const ERR_INCONSISTENT_LOG: &str = "a query was received which was expecting data to be in place which does not exist in the log";
+const ERR_INCONSISTENT_LOG: &str =
+    "a query was received which was expecting data to be in place which does not exist in the log";
 
 /// The application data request type which the `MemStore` works with.
 ///
@@ -106,7 +107,10 @@ impl MemStore {
     /// Create a new `MemStore` instance with some existing state (for testing).
     #[cfg(test)]
     pub fn new_with_state(
-        id: NodeId, log: BTreeMap<u64, Entry<ClientRequest>>, sm: MemStoreStateMachine, hs: Option<HardState>,
+        id: NodeId,
+        log: BTreeMap<u64, Entry<ClientRequest>>,
+        sm: MemStoreStateMachine,
+        hs: Option<HardState>,
         current_snapshot: Option<MemStoreSnapshot>,
     ) -> Self {
         let log = RwLock::new(log);
@@ -240,7 +244,11 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
     }
 
     #[tracing::instrument(level = "trace", skip(self, data))]
-    async fn apply_entry_to_state_machine(&self, index: &u64, data: &ClientRequest) -> Result<ClientResponse> {
+    async fn apply_entry_to_state_machine(
+        &self,
+        index: &u64,
+        data: &ClientRequest,
+    ) -> Result<ClientResponse> {
         let mut sm = self.sm.write().await;
         sm.last_applied_log = *index;
         if let Some((serial, res)) = sm.client_serial_responses.get(&data.client) {
@@ -248,8 +256,11 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
                 return Ok(ClientResponse(res.clone()));
             }
         }
-        let previous = sm.client_status.insert(data.client.clone(), data.status.clone());
-        sm.client_serial_responses.insert(data.client.clone(), (data.serial, previous.clone()));
+        let previous = sm
+            .client_status
+            .insert(data.client.clone(), data.status.clone());
+        sm.client_serial_responses
+            .insert(data.client.clone(), (data.serial, previous.clone()));
         Ok(ClientResponse(previous))
     }
 
@@ -263,8 +274,11 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
                     continue;
                 }
             }
-            let previous = sm.client_status.insert(data.client.clone(), data.status.clone());
-            sm.client_serial_responses.insert(data.client.clone(), (data.serial, previous.clone()));
+            let previous = sm
+                .client_status
+                .insert(data.client.clone(), data.status.clone());
+            sm.client_serial_responses
+                .insert(data.client.clone(), (data.serial, previous.clone()));
         }
         Ok(())
     }
@@ -306,7 +320,12 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
             *log = log.split_off(&last_applied_log);
             log.insert(
                 last_applied_log,
-                Entry::new_snapshot_pointer(last_applied_log, term, "".into(), membership_config.clone()),
+                Entry::new_snapshot_pointer(
+                    last_applied_log,
+                    term,
+                    "".into(),
+                    membership_config.clone(),
+                ),
             );
 
             let snapshot = MemStoreSnapshot {
@@ -319,7 +338,10 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
             *current_snapshot = Some(snapshot);
         } // Release log & snapshot write locks.
 
-        tracing::trace!({ snapshot_size = snapshot_bytes.len() }, "log compaction complete");
+        tracing::trace!(
+            { snapshot_size = snapshot_bytes.len() },
+            "log compaction complete"
+        );
         Ok(CurrentSnapshotData {
             term,
             index: last_applied_log,
@@ -335,9 +357,17 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
 
     #[tracing::instrument(level = "trace", skip(self, snapshot))]
     async fn finalize_snapshot_installation(
-        &self, index: u64, term: u64, delete_through: Option<u64>, id: String, snapshot: Box<Self::Snapshot>,
+        &self,
+        index: u64,
+        term: u64,
+        delete_through: Option<u64>,
+        id: String,
+        snapshot: Box<Self::Snapshot>,
     ) -> Result<()> {
-        tracing::trace!({ snapshot_size = snapshot.get_ref().len() }, "decoding snapshot for installation");
+        tracing::trace!(
+            { snapshot_size = snapshot.get_ref().len() },
+            "decoding snapshot for installation"
+        );
         let raw = serde_json::to_string_pretty(snapshot.get_ref().as_slice())?;
         println!("JSON SNAP:\n{}", raw);
         let new_snapshot: MemStoreSnapshot = serde_json::from_slice(snapshot.get_ref().as_slice())?;
@@ -361,7 +391,10 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
                 }
                 None => log.clear(),
             }
-            log.insert(index, Entry::new_snapshot_pointer(index, term, id, membership_config));
+            log.insert(
+                index,
+                Entry::new_snapshot_pointer(index, term, id, membership_config),
+            );
         }
 
         // Update the state machine.

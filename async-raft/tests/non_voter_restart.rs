@@ -29,7 +29,11 @@ async fn non_voter_restart() -> Result<()> {
     fixtures::init_tracing();
 
     // Setup test dependencies.
-    let config = Arc::new(Config::build("test".into()).validate().expect("failed to build Raft config"));
+    let config = Arc::new(
+        Config::build("test".into())
+            .validate()
+            .expect("failed to build Raft config"),
+    );
     let router = Arc::new(RaftRouter::new(config.clone()));
 
     router.new_raft_node(0).await;
@@ -62,7 +66,13 @@ async fn non_voter_restart() -> Result<()> {
     Ok(())
 }
 
-fn assert_node_state(id: NodeId, node: &MemRaft, expected_term: u64, expected_log: u64, state: State) {
+fn assert_node_state(
+    id: NodeId,
+    node: &MemRaft,
+    expected_term: u64,
+    expected_log: u64,
+    state: State,
+) {
     let m = node.metrics().borrow().clone();
     tracing::info!("node {} metrics: {:?}", id, m);
 

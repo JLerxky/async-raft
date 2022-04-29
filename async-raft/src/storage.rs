@@ -224,7 +224,12 @@ where
     ///
     /// Errors returned from this method will cause Raft to go into shutdown.
     async fn finalize_snapshot_installation(
-        &self, index: u64, term: u64, delete_through: Option<u64>, id: String, snapshot: Box<Self::Snapshot>,
+        &self,
+        index: u64,
+        term: u64,
+        delete_through: Option<u64>,
+        id: String,
+        snapshot: Box<Self::Snapshot>,
     ) -> Result<()>;
 
     /// Get a readable handle to the current snapshot, along with its metadata.

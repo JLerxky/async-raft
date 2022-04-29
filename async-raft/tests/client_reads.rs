@@ -23,7 +23,11 @@ async fn client_reads() -> Result<()> {
     fixtures::init_tracing();
 
     // Setup test dependencies.
-    let config = Arc::new(Config::build("test".into()).validate().expect("failed to build Raft config"));
+    let config = Arc::new(
+        Config::build("test".into())
+            .validate()
+            .expect("failed to build Raft config"),
+    );
     let router = Arc::new(RaftRouter::new(config.clone()));
     router.new_raft_node(0).await;
     router.new_raft_node(1).await;
@@ -42,12 +46,20 @@ async fn client_reads() -> Result<()> {
     // Get the ID of the leader, and assert that client_read succeeds.
     let leader = router.leader().await.expect("leader not found");
     assert_eq!(leader, 0, "expected leader to be node 0, got {}", leader);
+    router.client_read(leader).await.unwrap_or_else(|_| {
+        panic!(
+            "expected client_read to succeed for cluster leader {}",
+            leader
+        )
+    });
     router
-        .client_read(leader)
+        .client_read(1)
         .await
-        .unwrap_or_else(|_| panic!("expected client_read to succeed for cluster leader {}", leader));
-    router.client_read(1).await.expect_err("expected client_read on follower node 1 to fail");
-    router.client_read(2).await.expect_err("expected client_read on follower node 2 to fail");
+        .expect_err("expected client_read on follower node 1 to fail");
+    router
+        .client_read(2)
+        .await
+        .expect_err("expected client_read on follower node 2 to fail");
 
     Ok(())
 }

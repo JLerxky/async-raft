@@ -4,16 +4,24 @@ use futures::future::{FutureExt, TryFutureExt};
 use tokio::sync::oneshot;
 
 use crate::core::client::ClientRequestEntry;
-use crate::core::{ConsensusState, LeaderState, NonVoterReplicationState, NonVoterState, State, UpdateCurrentLeader};
+use crate::core::{
+    ConsensusState, LeaderState, NonVoterReplicationState, NonVoterState, State,
+    UpdateCurrentLeader,
+};
 use crate::error::{ChangeConfigError, InitializeError, RaftError};
 use crate::raft::{ChangeMembershipTx, ClientWriteRequest, MembershipConfig};
 use crate::replication::RaftEvent;
 use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
 
-impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> NonVoterState<'a, D, R, N, S> {
+impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>>
+    NonVoterState<'a, D, R, N, S>
+{
     /// Handle the admin `init_with_config` command.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub(super) async fn handle_init_with_config(&mut self, mut members: HashSet<NodeId>) -> Result<(), InitializeError> {
+    pub(super) async fn handle_init_with_config(
+        &mut self,
+        mut members: HashSet<NodeId>,
+    ) -> Result<(), InitializeError> {
         if self.core.last_log_index != 0 || self.core.current_term != 0 {
             tracing::error!({self.core.last_log_index, self.core.current_term}, "rejecting init_with_config request as last_log_index or current_term is 0");
             return Err(InitializeError::NotAllowed);
@@ -47,11 +55,17 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
     }
 }
 
-impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> LeaderState<'a, D, R, N, S> {
+impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>>
+    LeaderState<'a, D, R, N, S>
+{
     /// Add a new node to the cluster as a non-voter, bringing it up-to-speed, and then responding
     /// on the given channel.
     #[tracing::instrument(level = "trace", skip(self, tx))]
-    pub(super) fn add_member(&mut self, target: NodeId, tx: oneshot::Sender<Result<(), ChangeConfigError>>) {
+    pub(super) fn add_member(
+        &mut self,
+        target: NodeId,
+        tx: oneshot::Sender<Result<(), ChangeConfigError>>,
+    ) {
         // Ensure the node doesn't already exist in the current config, in the set of new nodes
         // alreading being synced, or in the nodes being removed.
         if self.core.membership.members.contains(&target)
@@ -83,7 +97,11 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
     }
 
     #[tracing::instrument(level = "trace", skip(self, tx))]
-    pub(super) async fn change_membership(&mut self, members: HashSet<NodeId>, tx: ChangeMembershipTx) {
+    pub(super) async fn change_membership(
+        &mut self,
+        members: HashSet<NodeId>,
+        tx: ChangeMembershipTx,
+    ) {
         // Ensure cluster will have at least one node.
         if members.is_empty() {
             let _ = tx.send(Err(ChangeConfigError::InoperableConfig));
@@ -107,7 +125,7 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
         // if we can proceed.
         let mut awaiting = HashSet::new();
         for new_node in members.difference(&self.core.membership.members) {
-            match self.non_voters.get(&new_node) {
+            match self.non_voters.get(new_node) {
                 // Node is ready to join.
                 Some(node) if node.is_ready_to_join => continue,
                 // Node has repl stream, but is not yet ready to join.
@@ -132,7 +150,11 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
         // If there are new nodes which need to sync, then we need to wait until they are synced.
         // Once they've finished, this routine will be called again to progress further.
         if !awaiting.is_empty() {
-            self.consensus_state = ConsensusState::NonVoterSync { awaiting, members, tx };
+            self.consensus_state = ConsensusState::NonVoterSync {
+                awaiting,
+                members,
+                tx,
+            };
             return;
         }
 
@@ -140,7 +162,9 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
         if !members.contains(&self.core.id) {
             self.is_stepping_down = true;
         }
-        self.consensus_state = ConsensusState::Joint { is_committed: false };
+        self.consensus_state = ConsensusState::Joint {
+            is_committed: false,
+        };
         self.core.membership.members_after_consensus = Some(members);
 
         // Propagate the command as any other client request.
@@ -230,12 +254,16 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
 
     /// Handle the commitment of a uniform consensus cluster configuration.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub(super) async fn handle_uniform_consensus_committed(&mut self, index: u64) -> Result<(), RaftError> {
+    pub(super) async fn handle_uniform_consensus_committed(
+        &mut self,
+        index: u64,
+    ) -> Result<(), RaftError> {
         // Step down if needed.
         if self.is_stepping_down {
             tracing::debug!("raft node is stepping down");
             self.core.set_target_state(State::NonVoter);
-            self.core.update_current_leader(UpdateCurrentLeader::Unknown);
+            self.core
+                .update_current_leader(UpdateCurrentLeader::Unknown);
             return Ok(());
         }
 
@@ -257,7 +285,10 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
             })
             .collect();
         for node in nodes_to_remove {
-            tracing::debug!({ target = node }, "removing target node from replication pool");
+            tracing::debug!(
+                { target = node },
+                "removing target node from replication pool"
+            );
             if let Some(node) = self.nodes.remove(&node) {
                 let _ = node.replstream.repltx.send(RaftEvent::Terminate);
             }

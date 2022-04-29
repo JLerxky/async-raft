@@ -1,6 +1,6 @@
 [book]
-authors = ["Anthony Dodd"]
-language = "en"
+authors = ["JLer"]
+language = "zh"
 multilingual = false
 src = "guide/src"
 title = "Async Raft"

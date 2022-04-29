@@ -9,7 +9,9 @@ use tokio::task::JoinHandle;
 
 use crate::config::Config;
 use crate::core::RaftCore;
-use crate::error::{ChangeConfigError, ClientReadError, ClientWriteError, InitializeError, RaftError, RaftResult};
+use crate::error::{
+    ChangeConfigError, ClientReadError, ClientWriteError, InitializeError, RaftError, RaftResult,
+};
 use crate::metrics::RaftMetrics;
 use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
 
@@ -70,7 +72,15 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         let (tx_api, rx_api) = mpsc::unbounded_channel();
         let (tx_metrics, rx_metrics) = watch::channel(RaftMetrics::new_initial(id));
         let (tx_shutdown, rx_shutdown) = oneshot::channel();
-        let raft_handle = RaftCore::spawn(id, config, network, storage, rx_api, tx_metrics, rx_shutdown);
+        let raft_handle = RaftCore::spawn(
+            id,
+            config,
+            network,
+            storage,
+            rx_api,
+            tx_metrics,
+            rx_shutdown,
+        );
         let inner = RaftInner {
             tx_api,
             rx_metrics,
@@ -79,7 +89,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             marker_n: std::marker::PhantomData,
             marker_s: std::marker::PhantomData,
         };
-        Self { inner: Arc::new(inner) }
+        Self {
+            inner: Arc::new(inner),
+        }
     }
 
     /// Submit an AppendEntries RPC to this Raft node.
@@ -87,13 +99,18 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     /// These RPCs are sent by the cluster leader to replicate log entries (§5.3), and are also
     /// used as heartbeats (§5.2).
     #[tracing::instrument(level = "debug", skip(self, rpc))]
-    pub async fn append_entries(&self, rpc: AppendEntriesRequest<D>) -> Result<AppendEntriesResponse, RaftError> {
+    pub async fn append_entries(
+        &self,
+        rpc: AppendEntriesRequest<D>,
+    ) -> Result<AppendEntriesResponse, RaftError> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .tx_api
             .send(RaftMsg::AppendEntries { rpc, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx.await.map_err(|_| RaftError::ShuttingDown).and_then(|res| res)?)
+        rx.await
+            .map_err(|_| RaftError::ShuttingDown)
+            .and_then(|res| res)
     }
 
     /// Submit a VoteRequest (RequestVote in the spec) RPC to this Raft node.
@@ -106,7 +123,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             .tx_api
             .send(RaftMsg::RequestVote { rpc, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx.await.map_err(|_| RaftError::ShuttingDown).and_then(|res| res)?)
+        rx.await
+            .map_err(|_| RaftError::ShuttingDown)
+            .and_then(|res| res)
     }
 
     /// Submit an InstallSnapshot RPC to this Raft node.
@@ -114,13 +133,18 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     /// These RPCs are sent by the cluster leader in order to bring a new node or a slow node up-to-speed
     /// with the leader (§7).
     #[tracing::instrument(level = "debug", skip(self, rpc))]
-    pub async fn install_snapshot(&self, rpc: InstallSnapshotRequest) -> Result<InstallSnapshotResponse, RaftError> {
+    pub async fn install_snapshot(
+        &self,
+        rpc: InstallSnapshotRequest,
+    ) -> Result<InstallSnapshotResponse, RaftError> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .tx_api
             .send(RaftMsg::InstallSnapshot { rpc, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx.await.map_err(|_| RaftError::ShuttingDown).and_then(|res| res)?)
+        rx.await
+            .map_err(|_| RaftError::ShuttingDown)
+            .and_then(|res| res)
     }
 
     /// Get the ID of the current leader from this Raft node.
@@ -144,10 +168,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             .tx_api
             .send(RaftMsg::ClientReadRequest { tx })
             .map_err(|_| ClientReadError::RaftError(RaftError::ShuttingDown))?;
-        Ok(rx
-            .await
+        rx.await
             .map_err(|_| ClientReadError::RaftError(RaftError::ShuttingDown))
-            .and_then(|res| res)?)
+            .and_then(|res| res)
     }
 
     /// Submit a mutating client request to Raft to update the state of the system (§5.1).
@@ -168,16 +191,18 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     /// These are application specific requirements, and must be implemented by the application which is
     /// being built on top of Raft.
     #[tracing::instrument(level = "debug", skip(self, rpc))]
-    pub async fn client_write(&self, rpc: ClientWriteRequest<D>) -> Result<ClientWriteResponse<R>, ClientWriteError<D>> {
+    pub async fn client_write(
+        &self,
+        rpc: ClientWriteRequest<D>,
+    ) -> Result<ClientWriteResponse<R>, ClientWriteError<D>> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .tx_api
             .send(RaftMsg::ClientWriteRequest { rpc, tx })
             .map_err(|_| ClientWriteError::RaftError(RaftError::ShuttingDown))?;
-        Ok(rx
-            .await
+        rx.await
             .map_err(|_| ClientWriteError::RaftError(RaftError::ShuttingDown))
-            .and_then(|res| res)?)
+            .and_then(|res| res)
     }
 
     /// Initialize a pristine Raft node with the given config.
@@ -215,10 +240,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             .tx_api
             .send(RaftMsg::Initialize { members, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx
-            .await
+        rx.await
             .map_err(|_| InitializeError::RaftError(RaftError::ShuttingDown))
-            .and_then(|res| res)?)
+            .and_then(|res| res)
     }
 
     /// Synchronize a new Raft node, bringing it up-to-speed (§6).
@@ -240,10 +264,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             .tx_api
             .send(RaftMsg::AddNonVoter { id, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx
-            .await
+        rx.await
             .map_err(|_| ChangeConfigError::RaftError(RaftError::ShuttingDown))
-            .and_then(|res| res)?)
+            .and_then(|res| res)
     }
 
     /// Propose a cluster configuration change (§6).
@@ -258,16 +281,18 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     /// If this Raft node is not the cluster leader, then the proposed configuration change will be
     /// rejected.
     #[tracing::instrument(level = "debug", skip(self))]
-    pub async fn change_membership(&self, members: HashSet<NodeId>) -> Result<(), ChangeConfigError> {
+    pub async fn change_membership(
+        &self,
+        members: HashSet<NodeId>,
+    ) -> Result<(), ChangeConfigError> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .tx_api
             .send(RaftMsg::ChangeMembership { members, tx })
             .map_err(|_| RaftError::ShuttingDown)?;
-        Ok(rx
-            .await
+        rx.await
             .map_err(|_| ChangeConfigError::RaftError(RaftError::ShuttingDown))
-            .and_then(|res| res)?)
+            .and_then(|res| res)
     }
 
     /// Get a handle to the metrics channel.
@@ -287,13 +312,18 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     }
 }
 
-impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Clone for Raft<D, R, N, S> {
+impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Clone
+    for Raft<D, R, N, S>
+{
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
-pub(crate) type ClientWriteResponseTx<D, R> = oneshot::Sender<Result<ClientWriteResponse<R>, ClientWriteError<D>>>;
+pub(crate) type ClientWriteResponseTx<D, R> =
+    oneshot::Sender<Result<ClientWriteResponse<R>, ClientWriteError<D>>>;
 pub(crate) type ClientReadResponseTx = oneshot::Sender<Result<(), ClientReadError>>;
 pub(crate) type ChangeMembershipTx = oneshot::Sender<Result<(), ChangeConfigError>>;
 
@@ -409,7 +439,12 @@ impl<D: AppData> Entry<D> {
     /// ### membership
     /// The cluster membership config which is contained in the snapshot, which will always be the
     /// latest membership covered by the snapshot.
-    pub fn new_snapshot_pointer(index: u64, term: u64, id: String, membership: MembershipConfig) -> Self {
+    pub fn new_snapshot_pointer(
+        index: u64,
+        term: u64,
+        id: String,
+        membership: MembershipConfig,
+    ) -> Self {
         Entry {
             term,
             index,

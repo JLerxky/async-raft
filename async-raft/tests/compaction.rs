@@ -67,7 +67,10 @@ async fn compaction() -> Result<()> {
 
     // Add a new node and assert that it received the same snapshot.
     router.new_raft_node(1).await;
-    router.add_non_voter(0, 1).await.expect("failed to add new node as non-voter");
+    router
+        .add_non_voter(0, 1)
+        .await
+        .expect("failed to add new node as non-voter");
     router
         .change_membership(0, hashset![0, 1])
         .await
@@ -82,7 +85,9 @@ async fn compaction() -> Result<()> {
             members_after_consensus: None,
         },
     ));
-    router.assert_storage_state(1, 502, None, 500, expected_snap).await;
+    router
+        .assert_storage_state(1, 502, None, 500, expected_snap)
+        .await;
     // -------------------------------- ^^^^ this value is None because non-voters do not vote.
 
     Ok(())
