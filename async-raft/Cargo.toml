@@ -15,10 +15,8 @@ readme = "../README.md"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-bytes = "1.0"
 derive_more = { version="0.99", default-features=false, features=["from"] }
 futures = "0.3"
-log = "0.4"
 rand = "0.8"
 serde = { version="1", features=["derive"] }
 thiserror = "1.0"
